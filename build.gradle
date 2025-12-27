@@ -120,6 +120,23 @@ repositories {
     }
 }
 
+// Whyever FG doesn't create this on its own. Apparently we need this to make the build work from clean state.
+def hackEnsureMappingsDirExists = tasks.register('hackEnsureMappingsDirExists') {
+    doLast {
+        def repoDir = new File(gradle.gradleUserHomeDir, 'caches/forge_gradle/minecraft_user_repo/de/oceanlabs/mcp/mcp_config/1.12.2')
+        if (!repoDir.exists()) {
+            if (!repoDir.mkdirs()) {
+                throw new GradleException("Failed to create mappings dir: ${repoDir}")
+            }
+            println "Created mappings dir: ${repoDir}"
+        }
+    }
+}
+
+tasks.matching { it.name == 'compileApiJava' || it.name == 'compileJava' }.all {
+    dependsOn hackEnsureMappingsDirExists
+}
+
 // fix forge gradle 4+ bug with 1.12.2
 afterEvaluate {
     configurations.minecraft {
