@@ -176,9 +176,34 @@ public class ProguardTask extends BaritoneGradleTask {
         template.add(0, "-injars '" + this.artifactPath.toString() + "'");
         template.add(1, "-outjars '" + this.getTemporaryFile(PROGUARD_EXPORT_PATH) + "'");
 
-        // Acquire the RT jar using "java -verbose". This doesn't work on Java 9+
+        // Acquire the RT jar using "java -verbose" and fall back to common locations or the module path
         Process p = new ProcessBuilder(this.getJavaBinPathForProguard(), "-verbose").start();
-        String out = IOUtils.toString(p.getInputStream(), "UTF-8").split("\n")[0].split("Opened ")[1].replace("]", "");
+        String procOut = IOUtils.toString(p.getInputStream(), "UTF-8");
+
+        String out;
+        try {
+            out = procOut.split("\n")[0].split("Opened ")[1].replace("]", "");
+        } catch (IndexOutOfBoundsException e) {
+            out = null;
+        }
+
+        if (out == null) {
+            File[] locations = {
+                new File(System.getProperty("java.home"), "jmods/"), // For Java 9+
+                new File(System.getProperty("java.home"), "lib/rt.jar"), // Common location for rt.jar on Java 8
+                new File(System.getProperty("java.home"), "../lib/rt.jar"), // Some distributions set java.home to a subdirectory
+            };
+
+            for (File loc : locations) {
+                if (loc.exists()) {
+                    out = loc.getAbsolutePath();
+                    break;
+                }
+            }
+        }
+        if (out == null) {
+            throw new IllegalStateException("Unable to locate rt.jar or jmods path for library jars.");
+        }
         template.add(2, "-libraryjars '" + out + "'");
 
         // API config doesn't require any changes from the changes that we made to the template
